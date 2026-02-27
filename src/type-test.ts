@@ -2,6 +2,7 @@
  * Compile-time type tests — if this file compiles, types are correct.
  * Not executed at runtime.
  */
+import { create } from "zustand";
 import { sliced } from "./index";
 
 // ===================================================================
@@ -30,34 +31,36 @@ interface Store {
 // 1. set and get are fully typed inside creators
 // ===================================================================
 
-const useStore = sliced<Store>({
-  auth: (set, get) => ({
-    user: null,
-    token: null,
-    login: (name) => {
-      set({ user: name }); // set: ScopedSet<AuthSlice>
+const useStore = create<Store>()(
+  sliced({
+    auth: (set, get) => ({
+      user: null,
+      token: null,
+      login: (name) => {
+        set({ user: name }); // set: ScopedSet<AuthSlice>
 
-      // @ts-expect-error — `typo` is not a key in AuthSlice
-      set({ typo: 123 });
-    },
-    logout: () => set({ user: null, token: null }),
+        // @ts-expect-error — `typo` is not a key in AuthSlice
+        set({ typo: 123 });
+      },
+      logout: () => set({ user: null, token: null }),
+    }),
+    cart: (set, get) => ({
+      items: [],
+      add: (item) => set((s) => ({ items: [...s.items, item] })),
+      checkout: () => {
+        const user = get().auth.user; // get(): Store — fully typed
+
+        // @ts-expect-error — `auth` doesn't have `items`
+        get().auth.items;
+
+        // @ts-expect-error — `cart` doesn't have `user`
+        get().cart.user;
+
+        return user ?? "anonymous";
+      },
+    }),
   }),
-  cart: (set, get) => ({
-    items: [],
-    add: (item) => set((s) => ({ items: [...s.items, item] })),
-    checkout: () => {
-      const user = get().auth.user; // get(): Store — fully typed
-
-      // @ts-expect-error — `auth` doesn't have `items`
-      get().auth.items;
-
-      // @ts-expect-error — `cart` doesn't have `user`
-      get().cart.user;
-
-      return user ?? "anonymous";
-    },
-  }),
-});
+);
 
 // ===================================================================
 // 2. Consumer side is fully typed
@@ -81,16 +84,18 @@ useStore.getState().user;
 // 3. Missing slice properties are caught at compile time
 // ===================================================================
 
-sliced<Store>({
-  auth: (set, get) => ({
-    user: null,
-    token: null,
-    login: (name: string) => set({ user: name }),
-    logout: () => set({ user: null, token: null }),
+create<Store>()(
+  sliced({
+    auth: (set, get) => ({
+      user: null,
+      token: null,
+      login: (name: string) => set({ user: name }),
+      logout: () => set({ user: null, token: null }),
+    }),
+    // @ts-expect-error — cart is missing `checkout`
+    cart: (set, get) => ({
+      items: [],
+      add: (item: string) => set((s) => ({ items: [...s.items, item] })),
+    }),
   }),
-  // @ts-expect-error — cart is missing `checkout`
-  cart: (set, get) => ({
-    items: [],
-    add: (item: string) => set((s) => ({ items: [...s.items, item] })),
-  }),
-});
+);

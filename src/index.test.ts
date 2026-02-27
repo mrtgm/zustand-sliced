@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { sliced, type ScopedSet } from "./index";
+import { create } from "zustand";
+import { sliced } from "./index";
 
 // ---------------------------------------------------------------------------
 // Shared types
@@ -26,17 +27,19 @@ describe("sliced", () => {
       counter: CounterSlice;
       greeting: GreetingSlice;
     }
-    const useStore = sliced<S>({
-      counter: (set) => ({
-        count: 0,
-        inc: () => set((s) => ({ count: s.count + 1 })),
-        add: (n) => set((s) => ({ count: s.count + n })),
+    const useStore = create<S>()(
+      sliced({
+        counter: (set) => ({
+          count: 0,
+          inc: () => set((s) => ({ count: s.count + 1 })),
+          add: (n) => set((s) => ({ count: s.count + n })),
+        }),
+        greeting: (set) => ({
+          message: "hello",
+          setMessage: (m) => set({ message: m }),
+        }),
       }),
-      greeting: (set) => ({
-        message: "hello",
-        setMessage: (m) => set({ message: m }),
-      }),
-    });
+    );
 
     const state = useStore.getState();
     expect(state.counter.count).toBe(0);
@@ -48,16 +51,18 @@ describe("sliced", () => {
       a: { value: number; setValue: (v: number) => void };
       b: { value: number; setValue: (v: number) => void };
     }
-    const useStore = sliced<S>({
-      a: (set) => ({
-        value: 1,
-        setValue: (v) => set({ value: v }),
+    const useStore = create<S>()(
+      sliced({
+        a: (set) => ({
+          value: 1,
+          setValue: (v) => set({ value: v }),
+        }),
+        b: (set) => ({
+          value: 100,
+          setValue: (v) => set({ value: v }),
+        }),
       }),
-      b: (set) => ({
-        value: 100,
-        setValue: (v) => set({ value: v }),
-      }),
-    });
+    );
 
     useStore.getState().a.setValue(42);
 
@@ -69,13 +74,15 @@ describe("sliced", () => {
     interface S {
       counter: CounterSlice;
     }
-    const useStore = sliced<S>({
-      counter: (set) => ({
-        count: 0,
-        inc: () => set((s) => ({ count: s.count + 1 })),
-        add: (n) => set((s) => ({ count: s.count + n })),
+    const useStore = create<S>()(
+      sliced({
+        counter: (set) => ({
+          count: 0,
+          inc: () => set((s) => ({ count: s.count + 1 })),
+          add: (n) => set((s) => ({ count: s.count + n })),
+        }),
       }),
-    });
+    );
 
     useStore.getState().counter.inc();
     useStore.getState().counter.inc();
@@ -99,21 +106,23 @@ describe("sliced", () => {
       cart: CartSlice;
     }
 
-    const useStore = sliced<S>({
-      auth: (set) => ({
-        user: null,
-        login: (name) => set({ user: name }),
+    const useStore = create<S>()(
+      sliced({
+        auth: (set) => ({
+          user: null,
+          login: (name) => set({ user: name }),
+        }),
+        cart: (set, get) => ({
+          items: [],
+          add: (item) => set((s) => ({ items: [...s.items, item] })),
+          checkout: () => {
+            const user = get().auth.user;
+            if (!user) throw new Error("Not logged in");
+            return `${user} bought ${get().cart.items.length} items`;
+          },
+        }),
       }),
-      cart: (set, get) => ({
-        items: [],
-        add: (item) => set((s) => ({ items: [...s.items, item] })),
-        checkout: () => {
-          const user = get().auth.user;
-          if (!user) throw new Error("Not logged in");
-          return `${user} bought ${get().cart.items.length} items`;
-        },
-      }),
-    });
+    );
 
     expect(() => useStore.getState().cart.checkout()).toThrow("Not logged in");
 
@@ -128,12 +137,14 @@ describe("sliced", () => {
     interface S {
       x: { val: number; set: (v: number) => void };
     }
-    const useStore = sliced<S>({
-      x: (set) => ({
-        val: 0,
-        set: (v) => set({ val: v }),
+    const useStore = create<S>()(
+      sliced({
+        x: (set) => ({
+          val: 0,
+          set: (v) => set({ val: v }),
+        }),
       }),
-    });
+    );
 
     const calls: number[] = [];
     useStore.subscribe((state) => {
@@ -151,16 +162,18 @@ describe("sliced", () => {
       foo: { name: string; update: () => void };
       bar: { name: string; update: () => void };
     }
-    const useStore = sliced<S>({
-      foo: (set) => ({
-        name: "foo",
-        update: () => set({ name: "FOO" }),
+    const useStore = create<S>()(
+      sliced({
+        foo: (set) => ({
+          name: "foo",
+          update: () => set({ name: "FOO" }),
+        }),
+        bar: (set) => ({
+          name: "bar",
+          update: () => set({ name: "BAR" }),
+        }),
       }),
-      bar: (set) => ({
-        name: "bar",
-        update: () => set({ name: "BAR" }),
-      }),
-    });
+    );
 
     expect(useStore.getState().foo.name).toBe("foo");
     expect(useStore.getState().bar.name).toBe("bar");
@@ -180,14 +193,16 @@ describe("sliced", () => {
         setFirstName: (n: string) => void;
       };
     }
-    const useStore = sliced<S>({
-      profile: (set) => ({
-        firstName: "John",
-        lastName: "Doe",
-        age: 30,
-        setFirstName: (n) => set({ firstName: n }),
+    const useStore = create<S>()(
+      sliced({
+        profile: (set) => ({
+          firstName: "John",
+          lastName: "Doe",
+          age: 30,
+          setFirstName: (n) => set({ firstName: n }),
+        }),
       }),
-    });
+    );
 
     useStore.getState().profile.setFirstName("Jane");
 

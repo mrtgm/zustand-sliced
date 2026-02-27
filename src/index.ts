@@ -1,5 +1,4 @@
-import { createStore, type StoreApi } from "zustand/vanilla";
-import { useStore as useZustandStore } from "zustand";
+import type { StoreApi } from "zustand/vanilla";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -7,57 +6,46 @@ import { useStore as useZustandStore } from "zustand";
 
 /**
  * Scoped set — only modifies the slice's own namespace.
- * Accepts a partial object or an updater function.
+ *
+ * With immer middleware, you can mutate the draft directly:
+ * ```ts
+ * set(s => { s.items.push(item) })
+ * ```
  */
 export type ScopedSet<TSlice> = (
-  partial: Partial<TSlice> | ((prev: TSlice) => Partial<TSlice>),
+  partial: Partial<TSlice> | ((prev: TSlice) => Partial<TSlice> | void),
 ) => void;
-
-/** Zustand-compatible hook with full selector support. */
-type UseBoundStore<TStore> = {
-  <U>(selector: (state: TStore) => U): U;
-  getState: () => TStore;
-  setState: StoreApi<TStore>["setState"];
-  subscribe: StoreApi<TStore>["subscribe"];
-};
 
 // ---------------------------------------------------------------------------
 // Implementation
 // ---------------------------------------------------------------------------
 
 /**
- * Create a zustand store with namespaced slices.
- *
- * Define your store shape as interfaces, then pass the combined type
- * to `sliced<Store>()`. This gives you fully typed `set` and `get`
- * inside every slice creator.
+ * Convert namespaced slice definitions into a zustand StateCreator.
+ * Use with zustand's `create()` — composes with any middleware.
  *
  * @example
  * ```ts
- * interface AuthSlice {
- *   user: string | null;
- *   login: (name: string) => void;
- * }
- * interface CartSlice {
- *   items: string[];
- *   add: (item: string) => void;
- * }
- * interface Store {
- *   auth: AuthSlice;
- *   cart: CartSlice;
- * }
+ * import { create } from 'zustand'
+ * import { immer } from 'zustand/middleware/immer'
+ * import { sliced } from 'zustand-sliced'
  *
- * const useStore = sliced<Store>({
- *   auth: (set, get) => ({
- *     user: null,
- *     login: (name) => set({ user: name }),  // set: ScopedSet<AuthSlice>
- *   }),
- *   cart: (set, get) => ({
- *     items: [],
- *     add: (item) => set(s => ({ items: [...s.items, item] })),
- *     // get().auth.user — fully typed cross-slice read
- *   }),
- * });
+ * interface AuthSlice { user: string | null; login: (name: string) => void }
+ * interface CartSlice { items: string[]; add: (item: string) => void }
+ * interface Store { auth: AuthSlice; cart: CartSlice }
+ *
+ * const useStore = create<Store>()(
+ *   immer(sliced({
+ *     auth: (set, get) => ({
+ *       user: null,
+ *       login: (name) => set({ user: name }),
+ *     }),
+ *     cart: (set, get) => ({
+ *       items: [],
+ *       add: (item) => set(s => { s.items.push(item) }),
+ *     }),
+ *   }))
+ * )
  * ```
  */
 export function sliced<TStore>(
@@ -67,40 +55,43 @@ export function sliced<TStore>(
       get: () => TStore,
     ) => TStore[K];
   },
-): UseBoundStore<TStore> {
-  let store: StoreApi<TStore>;
+): (set: any, get: any, api: StoreApi<TStore>) => TStore {
+  return (_set, _get, api) => {
+    const initialState: Record<string, unknown> = {};
 
-  const initialState: Record<string, unknown> = {};
+    for (const key of Object.keys(definitions)) {
+      const creator = (definitions as any)[key];
 
-  for (const key of Object.keys(definitions)) {
-    const creator = (definitions as any)[key];
+      // Scoped set: merges partial into `state[key]` only.
+      // Compatible with immer (void return = draft mutation).
+      // Passes action name for devtools.
+      const scopedSet = (
+        partial:
+          | Record<string, unknown>
+          | ((
+              prev: Record<string, unknown>,
+            ) => Record<string, unknown> | void),
+      ) => {
+        (api.setState as any)(
+          (prev: any) => {
+            const prevSlice = prev[key];
+            if (typeof partial === "function") {
+              const result = partial(prevSlice);
+              if (result === undefined) return;
+              return { [key]: { ...prevSlice, ...result } };
+            }
+            return { [key]: { ...prevSlice, ...partial } };
+          },
+          false,
+          `${key}/set`,
+        );
+      };
 
-    const scopedSet = (
-      partial:
-        | Record<string, unknown>
-        | ((prev: Record<string, unknown>) => Record<string, unknown>),
-    ) => {
-      store.setState((prev: any) => {
-        const prevSlice = prev[key];
-        const nextPartial =
-          typeof partial === "function" ? partial(prevSlice) : partial;
-        return { [key]: { ...prevSlice, ...nextPartial } } as Partial<TStore>;
-      });
-    };
+      const fullGet = () => api.getState();
 
-    const fullGet = () => store.getState();
+      initialState[key] = creator(scopedSet, fullGet);
+    }
 
-    initialState[key] = creator(scopedSet, fullGet);
-  }
-
-  store = createStore<TStore>(() => initialState as TStore);
-
-  const useBoundStore = (<U>(selector: (state: TStore) => U) =>
-    useZustandStore(store, selector)) as UseBoundStore<TStore>;
-
-  useBoundStore.getState = store.getState.bind(store);
-  useBoundStore.setState = store.setState.bind(store);
-  useBoundStore.subscribe = store.subscribe.bind(store);
-
-  return useBoundStore;
+    return initialState as TStore;
+  };
 }
