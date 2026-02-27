@@ -1,5 +1,9 @@
 # zustand-sliced
 
+[![npm version](https://img.shields.io/npm/v/zustand-sliced)](https://www.npmjs.com/package/zustand-sliced)
+[![npm bundle size](https://img.shields.io/bundlephobia/minzip/zustand-sliced)](https://bundlephobia.com/package/zustand-sliced)
+[![CI](https://github.com/mrtgm/zustand-sliced/actions/workflows/ci.yml/badge.svg)](https://github.com/mrtgm/zustand-sliced/actions/workflows/ci.yml)
+
 Namespaced slices for [zustand](https://github.com/pmndrs/zustand).
 
 ## Why
