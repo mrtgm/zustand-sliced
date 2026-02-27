@@ -1,6 +1,6 @@
 {
   "name": "zustand-sliced",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Namespaced slices for zustand — scoped set, full-store get, zero boilerplate",
   "main": "./dist/index.cjs",
   "module": "./dist/index.mjs",
