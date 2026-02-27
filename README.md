@@ -4,7 +4,7 @@
 [![npm bundle size](https://img.shields.io/bundlephobia/minzip/zustand-sliced)](https://bundlephobia.com/package/zustand-sliced)
 [![CI](https://github.com/mrtgm/zustand-sliced/actions/workflows/ci.yml/badge.svg)](https://github.com/mrtgm/zustand-sliced/actions/workflows/ci.yml)
 
-Namespaced slices for [zustand](https://github.com/pmndrs/zustand).
+Namespaced slices for [zustand](https://github.com/pmndrs/zustand). Fully typed, works with all middleware (immer, devtools, persist, ...).
 
 ## Why
 
@@ -87,10 +87,9 @@ export const useStore = create<Store>()(
 
 ## Middleware
 
-`sliced()` returns a standard zustand StateCreator, so middleware works exactly like normal zustand:
+`sliced()` returns a standard zustand `StateCreator`, so all middleware works exactly like normal zustand — just wrap it:
 
 ```ts
-import { create } from 'zustand'
 import { devtools, persist, createJSONStorage } from 'zustand/middleware'
 import { immer } from 'zustand/middleware/immer'
 
@@ -115,7 +114,12 @@ const useStore = create<Store>()(
 )
 ```
 
-Each slice's actions automatically show as `auth/set`, `cart/set` in Redux DevTools.
+| Middleware | Support |
+|---|---|
+| `immer` | Draft mutations in `set` |
+| `devtools` | Actions auto-labeled as `auth/set`, `cart/set` |
+| `persist` | Namespaced state serialized as-is |
+| Any other | Standard `StateCreator` — just works |
 
 ## License
 
