@@ -8,7 +8,7 @@ Namespaced slices for [zustand](https://github.com/pmndrs/zustand).
 
 ## Why
 
-Zustand's [slice pattern](https://zustand.docs.pmnd.rs/guides/slices-pattern) flat-merges all state into one object:
+Zustand's [slice pattern](https://zustand.docs.pmnd.rs/learn/guides/advanced-typescript#slices-pattern) flat-merges all state into one object:
 
 ```ts
 const useStore = create((...a) => ({
