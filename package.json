@@ -41,9 +41,15 @@
     "state-management",
     "react"
   ],
+  "author": "Morio Tagami",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/morio-tagami/zustand-sliced"
-  }
+    "url": "git+https://github.com/mrtgm/zustand-sliced.git"
+  },
+  "homepage": "https://github.com/mrtgm/zustand-sliced#readme",
+  "bugs": {
+    "url": "https://github.com/mrtgm/zustand-sliced/issues"
+  },
+  "sideEffects": false
 }
