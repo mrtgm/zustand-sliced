@@ -2,35 +2,10 @@
  * Compile-time type tests — if this file compiles, types are correct.
  * Not executed at runtime.
  */
-import { sliced, type ScopedSet } from "./index";
+import { sliced } from "./index";
 
 // ===================================================================
-// 1. Inferred mode (existing) — consumer side typed, creator side any
-// ===================================================================
-
-const inferred = sliced({
-  auth: (set, get) => ({
-    user: null as string | null,
-    login: (name: string) => set({ user: name }),
-  }),
-  cart: (set, get) => ({
-    items: [] as string[],
-    add: (item: string) => set((s: any) => ({ items: [...s.items, item] })),
-  }),
-});
-
-// Consumer side types work:
-const u1: string | null = inferred.getState().auth.user;
-const i1: string[] = inferred.getState().cart.items;
-
-// @ts-expect-error — `auth` doesn't have `items`
-inferred.getState().auth.items;
-
-// @ts-expect-error — top-level doesn't have `user`
-inferred.getState().user;
-
-// ===================================================================
-// 2. Explicit Store type — FULL typing inside and outside creators
+// Store type declaration
 // ===================================================================
 
 interface AuthSlice {
@@ -51,12 +26,16 @@ interface Store {
   cart: CartSlice;
 }
 
-const explicit = sliced<Store>({
+// ===================================================================
+// 1. set and get are fully typed inside creators
+// ===================================================================
+
+const useStore = sliced<Store>({
   auth: (set, get) => ({
     user: null,
     token: null,
     login: (name) => {
-      set({ user: name }); // set: ScopedSet<AuthSlice> — typed!
+      set({ user: name }); // set: ScopedSet<AuthSlice>
 
       // @ts-expect-error — `typo` is not a key in AuthSlice
       set({ typo: 123 });
@@ -65,9 +44,9 @@ const explicit = sliced<Store>({
   }),
   cart: (set, get) => ({
     items: [],
-    add: (item) => set((s) => ({ items: [...s.items, item] })), // s: AuthSlice — updater typed!
+    add: (item) => set((s) => ({ items: [...s.items, item] })),
     checkout: () => {
-      const user = get().auth.user; // get(): Store — fully typed!
+      const user = get().auth.user; // get(): Store — fully typed
 
       // @ts-expect-error — `auth` doesn't have `items`
       get().auth.items;
@@ -80,19 +59,26 @@ const explicit = sliced<Store>({
   }),
 });
 
-// Consumer side types work:
-const u2: string | null = explicit.getState().auth.user;
-const i2: string[] = explicit.getState().cart.items;
-const login: (name: string) => void = explicit.getState().auth.login;
+// ===================================================================
+// 2. Consumer side is fully typed
+// ===================================================================
+
+const user: string | null = useStore.getState().auth.user;
+const items: string[] = useStore.getState().cart.items;
+const login: (name: string) => void = useStore.getState().auth.login;
+const add: (item: string) => void = useStore.getState().cart.add;
 
 // @ts-expect-error — `auth` doesn't have `add`
-explicit.getState().auth.add;
+useStore.getState().auth.add;
 
-// @ts-expect-error — top-level doesn't have `user`
-explicit.getState().user;
+// @ts-expect-error — `cart` doesn't have `user`
+useStore.getState().cart.user;
+
+// @ts-expect-error — top-level doesn't have `user` (namespaced)
+useStore.getState().user;
 
 // ===================================================================
-// 3. Explicit Store type catches missing/wrong slice implementations
+// 3. Missing slice properties are caught at compile time
 // ===================================================================
 
 sliced<Store>({
@@ -102,10 +88,9 @@ sliced<Store>({
     login: (name: string) => set({ user: name }),
     logout: () => set({ user: null, token: null }),
   }),
-  // @ts-expect-error — cart is missing required property `checkout`
+  // @ts-expect-error — cart is missing `checkout`
   cart: (set, get) => ({
     items: [],
     add: (item: string) => set((s) => ({ items: [...s.items, item] })),
-    // checkout intentionally omitted — should error
   }),
 });

@@ -1,21 +1,40 @@
 import { describe, it, expect } from "vitest";
-import { sliced } from "./index";
+import { sliced, type ScopedSet } from "./index";
 
 // ---------------------------------------------------------------------------
-// Helpers — suppress "useStore must be used inside React" by calling
-// getState / setState directly (vanilla mode).
+// Shared types
+// ---------------------------------------------------------------------------
+
+interface CounterSlice {
+  count: number;
+  inc: () => void;
+  add: (n: number) => void;
+}
+
+interface GreetingSlice {
+  message: string;
+  setMessage: (m: string) => void;
+}
+
+// ---------------------------------------------------------------------------
+// Tests
 // ---------------------------------------------------------------------------
 
 describe("sliced", () => {
   it("creates a store with namespaced initial state", () => {
-    const useStore = sliced({
+    interface S {
+      counter: CounterSlice;
+      greeting: GreetingSlice;
+    }
+    const useStore = sliced<S>({
       counter: (set) => ({
         count: 0,
-        inc: () => set((s: any) => ({ count: s.count + 1 })),
+        inc: () => set((s) => ({ count: s.count + 1 })),
+        add: (n) => set((s) => ({ count: s.count + n })),
       }),
       greeting: (set) => ({
         message: "hello",
-        setMessage: (m: string) => set({ message: m }),
+        setMessage: (m) => set({ message: m }),
       }),
     });
 
@@ -25,31 +44,36 @@ describe("sliced", () => {
   });
 
   it("scoped set only updates its own slice", () => {
-    const useStore = sliced({
+    interface S {
+      a: { value: number; setValue: (v: number) => void };
+      b: { value: number; setValue: (v: number) => void };
+    }
+    const useStore = sliced<S>({
       a: (set) => ({
         value: 1,
-        setValue: (v: number) => set({ value: v }),
+        setValue: (v) => set({ value: v }),
       }),
       b: (set) => ({
         value: 100,
-        setValue: (v: number) => set({ value: v }),
+        setValue: (v) => set({ value: v }),
       }),
     });
 
-    // Mutate slice `a`
     useStore.getState().a.setValue(42);
 
     expect(useStore.getState().a.value).toBe(42);
-    // Slice `b` must be untouched
     expect(useStore.getState().b.value).toBe(100);
   });
 
   it("scoped set with updater function receives the slice state", () => {
-    const useStore = sliced({
+    interface S {
+      counter: CounterSlice;
+    }
+    const useStore = sliced<S>({
       counter: (set) => ({
         count: 0,
-        inc: () => set((s: any) => ({ count: s.count + 1 })),
-        add: (n: number) => set((s: any) => ({ count: s.count + n })),
+        inc: () => set((s) => ({ count: s.count + 1 })),
+        add: (n) => set((s) => ({ count: s.count + n })),
       }),
     });
 
@@ -61,14 +85,28 @@ describe("sliced", () => {
   });
 
   it("get() returns the full store for cross-slice reads", () => {
-    const useStore = sliced({
+    interface AuthSlice {
+      user: string | null;
+      login: (name: string) => void;
+    }
+    interface CartSlice {
+      items: string[];
+      add: (item: string) => void;
+      checkout: () => string;
+    }
+    interface S {
+      auth: AuthSlice;
+      cart: CartSlice;
+    }
+
+    const useStore = sliced<S>({
       auth: (set) => ({
-        user: null as string | null,
-        login: (name: string) => set({ user: name }),
+        user: null,
+        login: (name) => set({ user: name }),
       }),
       cart: (set, get) => ({
-        items: [] as string[],
-        add: (item: string) => set((s: any) => ({ items: [...s.items, item] })),
+        items: [],
+        add: (item) => set((s) => ({ items: [...s.items, item] })),
         checkout: () => {
           const user = get().auth.user;
           if (!user) throw new Error("Not logged in");
@@ -77,10 +115,8 @@ describe("sliced", () => {
       }),
     });
 
-    // Should throw when not logged in
     expect(() => useStore.getState().cart.checkout()).toThrow("Not logged in");
 
-    // Login and add items
     useStore.getState().auth.login("Alice");
     useStore.getState().cart.add("Widget");
     useStore.getState().cart.add("Gadget");
@@ -89,10 +125,13 @@ describe("sliced", () => {
   });
 
   it("subscribe notifies on any slice change", () => {
-    const useStore = sliced({
+    interface S {
+      x: { val: number; set: (v: number) => void };
+    }
+    const useStore = sliced<S>({
       x: (set) => ({
         val: 0,
-        set: (v: number) => set({ val: v }),
+        set: (v) => set({ val: v }),
       }),
     });
 
@@ -108,7 +147,11 @@ describe("sliced", () => {
   });
 
   it("multiple slices can coexist without name collisions", () => {
-    const useStore = sliced({
+    interface S {
+      foo: { name: string; update: () => void };
+      bar: { name: string; update: () => void };
+    }
+    const useStore = sliced<S>({
       foo: (set) => ({
         name: "foo",
         update: () => set({ name: "FOO" }),
@@ -119,7 +162,6 @@ describe("sliced", () => {
       }),
     });
 
-    // Both have `name` — no collision because they're namespaced
     expect(useStore.getState().foo.name).toBe("foo");
     expect(useStore.getState().bar.name).toBe("bar");
 
@@ -130,12 +172,20 @@ describe("sliced", () => {
   });
 
   it("preserves other properties in a slice when doing partial set", () => {
-    const useStore = sliced({
+    interface S {
+      profile: {
+        firstName: string;
+        lastName: string;
+        age: number;
+        setFirstName: (n: string) => void;
+      };
+    }
+    const useStore = sliced<S>({
       profile: (set) => ({
         firstName: "John",
         lastName: "Doe",
         age: 30,
-        setFirstName: (n: string) => set({ firstName: n }),
+        setFirstName: (n) => set({ firstName: n }),
       }),
     });
 

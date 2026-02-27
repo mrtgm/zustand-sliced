@@ -24,31 +24,47 @@ You end up prefixing everything (`authUser`, `cartItems`, `authLoading`, `cartLo
 npm install zustand-sliced
 ```
 
+Define your store shape as interfaces, pass the combined type to `sliced<Store>()`:
+
 ```ts
 import { sliced } from 'zustand-sliced'
 
-const useStore = sliced({
+interface AuthSlice {
+  user: string | null
+  login: (name: string) => void
+}
+
+interface CartSlice {
+  items: string[]
+  add: (item: string) => void
+}
+
+interface Store {
+  auth: AuthSlice
+  cart: CartSlice
+}
+
+const useStore = sliced<Store>({
   auth: (set, get) => ({
-    user: null as string | null,
-    login: (name: string) => set({ user: name }),
+    user: null,
+    login: (name) => set({ user: name }),
+    // set({ typo: 1 })   — compile error
   }),
   cart: (set, get) => ({
-    items: [] as string[],
-    add: (item: string) => set((s: any) => ({ items: [...s.items, item] })),
-    checkout: () => {
-      const user = get().auth.user  // cross-slice read
-      if (!user) throw new Error('Not logged in')
-    },
+    items: [],
+    add: (item) => set(s => ({ items: [...s.items, item] })),
+    // get().auth.user     — fully typed cross-slice read
   }),
 })
 
-// Namespaced, typed, no ambiguity
+// Namespaced, fully typed
 useStore(s => s.auth.user)    // string | null
 useStore(s => s.cart.items)   // string[]
 ```
 
-- **`set`** is scoped — `set({ user: name })` only touches `state.auth`
-- **`get`** returns the full store — `get().cart.items` for cross-slice reads
+- **`set`** is scoped to its own slice and fully typed — `set({ user: name })` only touches `state.auth`
+- **`get`** returns the full store, fully typed — `get().cart.items` for cross-slice reads
+- Missing or wrong slice properties are caught at compile time
 
 Slices can live in separate files:
 
@@ -57,31 +73,7 @@ Slices can live in separate files:
 import { authSlice } from './features/auth/slice'
 import { cartSlice } from './features/cart/slice'
 
-export const useStore = sliced({ auth: authSlice, cart: cartSlice })
-```
-
-## Typed slices
-
-By default, consumer code is fully typed but `set`/`get` inside creators are `any`.
-
-Pass an explicit Store type for full internal type safety:
-
-```ts
-interface AuthSlice { user: string | null; login: (name: string) => void }
-interface CartSlice { items: string[]; add: (item: string) => void }
-interface Store { auth: AuthSlice; cart: CartSlice }
-
-const useStore = sliced<Store>({
-  auth: (set, get) => ({
-    user: null,
-    login: (name) => set({ user: name }),   // ScopedSet<AuthSlice>
-    // set({ typo: 1 })                     // compile error
-  }),
-  cart: (set, get) => ({
-    items: [],
-    add: (item) => set(s => ({ items: [...s.items, item] })),
-  }),
-})
+export const useStore = sliced<Store>({ auth: authSlice, cart: cartSlice })
 ```
 
 ## License
