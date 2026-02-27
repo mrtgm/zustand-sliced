@@ -1,4 +1,3 @@
-import { describe, it, expect } from "vitest";
 import { create } from "zustand";
 import { sliced } from "./index";
 
